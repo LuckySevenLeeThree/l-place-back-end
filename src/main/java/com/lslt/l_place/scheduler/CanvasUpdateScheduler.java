@@ -62,18 +62,17 @@ public class CanvasUpdateScheduler {
                 pixelRepository.saveAll(pixels);
 
                 // Redis에서 처리된 키 제거
-                redisTemplate.opsForSet().remove(redisSetKey, batch.toArray(new String[0])); // 수정: String[]로 변환
-                logger.info("MySQL 저장 완료: {}건, 키: {}", pixels.size(), redisSetKey);
+                redisTemplate.opsForSet().remove(redisSetKey, batch.toArray(new String[0]));
+                logger.info("{}: MySQL 저장 완료 - {}건", redisSetKey, pixels.size());
             } catch (Exception e) {
                 logger.error("MySQL 저장 실패: {}", e.getMessage());
                 // 실패한 키를 실패 리스트에 저장
                 if (!redisSetKey.equals("failed_pixels")) {
-                    redisTemplate.opsForSet().add("failed_pixels", batch.toArray(new String[0])); // 수정: String[]로 변환
+                    redisTemplate.opsForSet().add("failed_pixels", batch.toArray(new String[0]));
                 }
             }
         }
     }
-
 
     /**
      * Redis에서 픽셀 데이터를 가져와 Pixel 객체로 변환.
@@ -82,20 +81,28 @@ public class CanvasUpdateScheduler {
      * @return Pixel 객체 리스트
      */
     private List<Pixel> fetchPixelsFromRedis(List<String> keys) {
+        // List<String>을 Collection<Object>로 변환
+        List<Object> keysAsObjects = keys.stream().map(Object.class::cast).collect(Collectors.toList());
+
         // Redis에서 데이터 가져오기
-        Collection<Object> keysAsObjects = keys.stream().map(Object.class::cast).collect(Collectors.toList());
         List<Object> rawColors = redisTemplate.opsForHash().multiGet("canvas", keysAsObjects);
+
+        if (rawColors == null || rawColors.isEmpty()) {
+            logger.warn("Redis에서 데이터를 가져오지 못했습니다.");
+            return Collections.emptyList();
+        }
 
         List<Pixel> pixels = new ArrayList<>();
         for (int i = 0; i < keys.size(); i++) {
             String key = keys.get(i);
             String[] coords = key.split("_");
-            int x = Integer.parseInt(coords[1]);
-            int y = Integer.parseInt(coords[2]);
-            String color = rawColors.get(i) == null ? null : rawColors.get(i).toString();
-
-            if (color != null) { // null 검증 추가
+            try {
+                int x = Integer.parseInt(coords[1]);
+                int y = Integer.parseInt(coords[2]);
+                String color = rawColors.get(i) == null ? "#FFFFFF" : rawColors.get(i).toString(); // 기본값 처리
                 pixels.add(new Pixel(x, y, color));
+            } catch (Exception e) {
+                logger.error("잘못된 키 형식: {}", key, e);
             }
         }
         return pixels;

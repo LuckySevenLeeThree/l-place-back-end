@@ -47,11 +47,6 @@ public class CanvasServiceImpl implements CanvasService {
         return pixelDTO;
     }
 
-    @Override
-    public List<PixelDTO> getCanvasRegion(int startX, int startY, int endX, int endY) {
-        return null;
-    }
-
     private String serialize(PixelDTO pixelDTO) {
         try {
             return objectMapper.writeValueAsString(pixelDTO);
