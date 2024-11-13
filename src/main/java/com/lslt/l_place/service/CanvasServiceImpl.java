@@ -1,22 +1,24 @@
 package com.lslt.l_place.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lslt.l_place.dto.PixelDTO;
-import com.lslt.l_place.entity.Pixel;
-import com.lslt.l_place.repository.PixelRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class CanvasServiceImpl implements CanvasService {
 
     private final StringRedisTemplate redisTemplate;
-    private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper objectMapper;
+
+    public CanvasServiceImpl(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public List<PixelDTO> getCanvas() {
@@ -25,27 +27,36 @@ public class CanvasServiceImpl implements CanvasService {
                     String[] coords = entry.getKey().toString().split("_");
                     int x = Integer.parseInt(coords[1]);
                     int y = Integer.parseInt(coords[2]);
-                    String color = entry.getValue().toString();
-                    return new PixelDTO(x, y, color);
+                    return new PixelDTO(x, y, entry.getValue().toString());
                 })
                 .collect(Collectors.toList());
     }
 
     @Override
     public PixelDTO updatePixel(int x, int y, String color) {
-        PixelDTO pixelDTO = new PixelDTO(x, y, color);
         String key = "pixel_" + x + "_" + y;
+        String existingColor = (String) redisTemplate.opsForHash().get("canvas", key);
 
-        // Redis에 픽셀 업데이트
+        if (color.equals(existingColor)) {
+            return null;
+        }
+
+        PixelDTO pixelDTO = new PixelDTO(x, y, color);
         redisTemplate.opsForHash().put("canvas", key, color);
-
-        // 변경된 데이터를 변경 목록에 추가
-        redisTemplate.opsForSet().add("changed_pixels", key);
-
-        // RabbitMQ에 메시지 전송
-        rabbitTemplate.convertAndSend("pixel.update.queue", pixelDTO);
-
+        redisTemplate.convertAndSend("canvas-update", serialize(pixelDTO));
         return pixelDTO;
     }
 
+    @Override
+    public List<PixelDTO> getCanvasRegion(int startX, int startY, int endX, int endY) {
+        return null;
+    }
+
+    private String serialize(PixelDTO pixelDTO) {
+        try {
+            return objectMapper.writeValueAsString(pixelDTO);
+        } catch (Exception e) {
+            throw new IllegalStateException("PixelDTO 직렬화 실패", e);
+        }
+    }
 }

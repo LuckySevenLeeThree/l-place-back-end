@@ -21,4 +21,8 @@ public class Pixel {
         this.id = new PixelId(x, y);
         this.color = color;
     }
+
+    public void changeColor(String newColor) {
+        this.color = newColor;
+    }
 }

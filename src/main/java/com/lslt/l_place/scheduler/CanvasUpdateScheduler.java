@@ -9,7 +9,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
@@ -22,31 +22,83 @@ public class CanvasUpdateScheduler {
 
     private static final int BATCH_SIZE = 500;
 
-    @Scheduled(fixedRate = 60000) // 1분마다 실행
+    /**
+     * 1분마다 Redis의 변경된 데이터를 MySQL로 동기화.
+     */
+    @Scheduled(fixedRate = 60000)
     public void syncToDatabase() {
-        List<String> changedPixelKeys = redisTemplate.opsForSet().members("changed_pixels").stream().collect(Collectors.toList());
+        processBatch("changed_pixels");
+    }
 
-        for (int i = 0; i < changedPixelKeys.size(); i += BATCH_SIZE) {
-            List<String> batch = changedPixelKeys.subList(i, Math.min(i + BATCH_SIZE, changedPixelKeys.size()));
+    /**
+     * 5분마다 Redis의 실패 데이터를 재처리.
+     */
+    @Scheduled(fixedRate = 300000)
+    public void retryFailedData() {
+        processBatch("failed_pixels");
+    }
 
-            List<Pixel> pixels = batch.stream()
-                    .map(key -> {
-                        String[] coords = key.split("_");
-                        int x = Integer.parseInt(coords[1]);
-                        int y = Integer.parseInt(coords[2]);
-                        String color = redisTemplate.opsForHash().get("canvas", key).toString();
-                        return new Pixel(x, y, color); // Pixel 객체 생성 시 EmbeddedId 사용
-                    })
-                    .collect(Collectors.toList());
+    /**
+     * Redis의 특정 Set 키를 기준으로 배치를 처리.
+     *
+     * @param redisSetKey Redis의 Set 키 (changed_pixels 또는 failed_pixels)
+     */
+    private void processBatch(String redisSetKey) {
+        Set<String> pixelKeys = redisTemplate.opsForSet().members(redisSetKey);
+        if (pixelKeys == null || pixelKeys.isEmpty()) {
+            logger.info("{}에 동기화할 데이터가 없습니다.", redisSetKey);
+            return;
+        }
+
+        List<String> keysList = new ArrayList<>(pixelKeys);
+
+        for (int i = 0; i < keysList.size(); i += BATCH_SIZE) {
+            List<String> batch = keysList.subList(i, Math.min(i + BATCH_SIZE, keysList.size()));
+
+            List<Pixel> pixels = fetchPixelsFromRedis(batch);
 
             try {
-                pixelRepository.saveAll(pixels); // EmbeddedId로 동작
-                redisTemplate.opsForSet().remove("changed_pixels", batch.toArray());
+                // MySQL에 배치 저장
+                pixelRepository.saveAll(pixels);
+
+                // Redis에서 처리된 키 제거
+                redisTemplate.opsForSet().remove(redisSetKey, batch.toArray(new String[0])); // 수정: String[]로 변환
+                logger.info("MySQL 저장 완료: {}건, 키: {}", pixels.size(), redisSetKey);
             } catch (Exception e) {
                 logger.error("MySQL 저장 실패: {}", e.getMessage());
-                batch.forEach(key -> redisTemplate.opsForSet().add("failed_pixels", key));
+                // 실패한 키를 실패 리스트에 저장
+                if (!redisSetKey.equals("failed_pixels")) {
+                    redisTemplate.opsForSet().add("failed_pixels", batch.toArray(new String[0])); // 수정: String[]로 변환
+                }
             }
         }
-        logger.info("Redis -> MySQL 동기화 완료: {}건", changedPixelKeys.size());
     }
+
+
+    /**
+     * Redis에서 픽셀 데이터를 가져와 Pixel 객체로 변환.
+     *
+     * @param keys Redis Hash 키 리스트
+     * @return Pixel 객체 리스트
+     */
+    private List<Pixel> fetchPixelsFromRedis(List<String> keys) {
+        // Redis에서 데이터 가져오기
+        Collection<Object> keysAsObjects = keys.stream().map(Object.class::cast).collect(Collectors.toList());
+        List<Object> rawColors = redisTemplate.opsForHash().multiGet("canvas", keysAsObjects);
+
+        List<Pixel> pixels = new ArrayList<>();
+        for (int i = 0; i < keys.size(); i++) {
+            String key = keys.get(i);
+            String[] coords = key.split("_");
+            int x = Integer.parseInt(coords[1]);
+            int y = Integer.parseInt(coords[2]);
+            String color = rawColors.get(i) == null ? null : rawColors.get(i).toString();
+
+            if (color != null) { // null 검증 추가
+                pixels.add(new Pixel(x, y, color));
+            }
+        }
+        return pixels;
+    }
+
 }
