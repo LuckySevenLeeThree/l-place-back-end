@@ -29,6 +29,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -36,11 +37,34 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	implementation 'mysql:mysql-connector-java:8.0.33'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.1.0'
+	implementation 'io.micrometer:micrometer-core'
+	implementation 'io.micrometer:micrometer-registry-prometheus'
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.named('bootJar') {
+	enabled = true
+}
+
+tasks.named('jar') {
+	enabled = false
+}
+
+//jar {
+//	archiveBaseName.set("l-place")  // 기본 이름
+//	archiveVersion.set("")         // 버전 제거
+//	archiveClassifier.set("")      // 분류자 제거
+//}
+
+//bootJar {
+//	archiveBaseName.set('l-place') // 기본 이름
+//	archiveVersion.set('')         // 버전 제거
+//	archiveClassifier.set('')      // 분류자 제거
+//}
+
 
 dockerCompose {
 	useComposeFiles = ['docker-compose.yml']  // Compose 파일 경로 지정
