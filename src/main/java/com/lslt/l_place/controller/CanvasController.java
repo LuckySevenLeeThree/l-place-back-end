@@ -37,18 +37,4 @@ public class CanvasController {
         }
         return canvasService.updatePixel(pixelDTO.getX(), pixelDTO.getY(), pixelDTO.getColor());
     }
-
-    /**
-     * WebSocket을 통한 픽셀 색상 업데이트.
-     * @param pixelDTO 업데이트할 픽셀 데이터
-     * @return 업데이트된 픽셀 데이터
-     */
-    @MessageMapping("/draw")
-    @SendTo("/topic/canvas")
-    public PixelDTO drawPixel(PixelDTO pixelDTO) {
-        if (pixelDTO.getX() < 0 || pixelDTO.getY() < 0 || pixelDTO.getColor() == null) {
-            throw new IllegalArgumentException("Invalid pixel data");
-        }
-        return canvasService.updatePixel(pixelDTO.getX(), pixelDTO.getY(), pixelDTO.getColor());
-    }
 }

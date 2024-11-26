@@ -7,7 +7,7 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public class PixelDTO {
+public class PixelDTO{
 
     @Min(value = 0, message = "X 좌표는 0 이상이어야 합니다.")
     private final int x;
