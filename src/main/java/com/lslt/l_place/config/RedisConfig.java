@@ -20,8 +20,8 @@ import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 @Slf4j
 public class RedisConfig {
 
-    private static final int CANVAS_HEIGHT = 20;
-    private static final int CANVAS_WIDTH= 20;
+    private static final int CANVAS_HEIGHT = 256;
+    private static final int CANVAS_WIDTH= 256;
     private static final String CANVAS_KEY = "canvas";
     private final RedisTemplate redisTemplate;
 

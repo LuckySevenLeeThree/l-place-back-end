@@ -17,8 +17,8 @@ import java.util.List;
 @Service
 public class CanvasServiceImpl implements CanvasService {
 
-    private static final int CANVAS_HEIGHT = 1024;
-    private static final int CANVAS_WIDTH = 1024;
+    private static final int CANVAS_HEIGHT = 256;
+    private static final int CANVAS_WIDTH = 256;
     private static final String CANVAS_KEY = "canvas";
 
     private final StringRedisTemplate redisTemplate;
@@ -63,25 +63,34 @@ public class CanvasServiceImpl implements CanvasService {
     @Override
     public PixelDTO updatePixel(int x, int y, String color) {
         int colorValue = Integer.parseInt(color.substring(1), 16);
-        int offset = (y * CANVAS_WIDTH + x) * 24;
+        int offset = (y * CANVAS_WIDTH + x) * 3; // 픽셀의 바이트 오프셋 계산
 
-//        if (color.equals(existingColor)) {
-//            return null;
-//        }
+        byte[] pixelData = new byte[] {
+                (byte) ((colorValue >> 16) & 0xFF), // Red
+                (byte) ((colorValue >> 8) & 0xFF),  // Green
+                (byte) (colorValue & 0xFF)          // Blue
+        };
 
         RedisConnection connection = redisTemplate.getConnectionFactory().getConnection();
-        connection.bitField(
-                CANVAS_KEY.getBytes(),
-                BitFieldSubCommands.create()
-                        .set(BitFieldSubCommands.BitFieldType.unsigned(24))
-                        .valueAt(offset)
-                        .to(colorValue)
-        );
+        byte[] canvasData = connection.get(CANVAS_KEY.getBytes());
 
-        PixelDTO pixelDTO = new PixelDTO(x, y , color);
+        // Redis 데이터가 없으면 초기화
+        if (canvasData == null || canvasData.length < (CANVAS_WIDTH * CANVAS_HEIGHT * 3)) {
+            canvasData = new byte[CANVAS_WIDTH * CANVAS_HEIGHT * 3];
+            Arrays.fill(canvasData, (byte) 0xFF); // 초기화: 흰색으로 설정
+        }
+
+        // 픽셀 데이터 업데이트
+        System.arraycopy(pixelData, 0, canvasData, offset, pixelData.length);
+        connection.set(CANVAS_KEY.getBytes(), canvasData);
+
+        // Pub/Sub 메시지 전송
+        PixelDTO pixelDTO = new PixelDTO(x, y, color);
         redisTemplate.convertAndSend("canvas-update", serialize(pixelDTO));
+
         return pixelDTO;
     }
+
 
     private String serialize(PixelDTO pixelDTO) {
         try {
