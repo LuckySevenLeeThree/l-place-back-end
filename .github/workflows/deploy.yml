@@ -59,7 +59,8 @@ jobs:
           key: ${{ secrets.EC2_PRIVATE_KEY }}
           script_stop: true
           script: |
+            aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin 850995565210.dkr.ecr.ap-northeast-2.amazonaws.com
             docker stop l-place-server || true
             docker rm l-place-server || true
-            docker pull ${{ steps.login-ecr.outputs.registry }}/l-place-server:latest
-            docker run -d --name l-place-server -p 8080:8080 ${{ steps.login-ecr.outputs.registry }}/l-place-server:latest
+            docker pull 850995565210.dkr.ecr.ap-northeast-2.amazonaws.com/l-place-server:latest
+            docker run -d --name l-place-server -p 8080:8080 850995565210.dkr.ecr.ap-northeast-2.amazonaws.com/l-place-server:latest
