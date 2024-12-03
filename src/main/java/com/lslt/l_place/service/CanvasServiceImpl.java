@@ -3,23 +3,22 @@ package com.lslt.l_place.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lslt.l_place.dto.PixelDTO;
 import java.nio.ByteBuffer;
+import io.micrometer.core.annotation.Timed;
+import org.springframework.data.redis.connection.RedisConnection;
 import java.util.ArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.connection.BitFieldSubCommands;
-import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Service
 public class CanvasServiceImpl implements CanvasService {
 
-    private static final int CANVAS_HEIGHT = 20;
-    private static final int CANVAS_WIDTH= 20;
+    private static final int CANVAS_HEIGHT = 256;
+    private static final int CANVAS_WIDTH = 256;
     private static final String CANVAS_KEY = "canvas";
     private static final Logger log = LoggerFactory.getLogger(CanvasServiceImpl.class);
 
@@ -31,6 +30,7 @@ public class CanvasServiceImpl implements CanvasService {
         this.objectMapper = objectMapper;
     }
 
+    @Timed("canvas.getCanvas") // 실행 시간 측정
     @Override
     public List<PixelDTO> getCanvas() {
         List<PixelDTO> canvas = new ArrayList<>();
@@ -63,14 +63,15 @@ public class CanvasServiceImpl implements CanvasService {
     @Override
     public PixelDTO updatePixel(int x, int y, String color) {
         int colorValue = Integer.parseInt(color.substring(1), 16);
-        int offset = (y * CANVAS_WIDTH + x) * 24;
+        int offset = (y * CANVAS_WIDTH + x) * 3; // 픽셀의 바이트 오프셋 계산
 
-//        if (color.equals(existingColor)) {
-//            return null;
-//        }
+        byte[] pixelData = new byte[] {
+                (byte) ((colorValue >> 16) & 0xFF), // Red
+                (byte) ((colorValue >> 8) & 0xFF),  // Green
+                (byte) (colorValue & 0xFF)          // Blue
+        };
 
         RedisConnection connection = redisTemplate.getConnectionFactory().getConnection();
-
         // 현재 색상값 읽어오기
         List<Long> result = connection.bitField(
                 CANVAS_KEY.getBytes(),
@@ -95,8 +96,10 @@ public class CanvasServiceImpl implements CanvasService {
 
         PixelDTO pixelDTO = new PixelDTO(x, y , color);
         redisTemplate.convertAndSend("canvas-update", serialize(pixelDTO));
+
         return pixelDTO;
     }
+
 
     private String serialize(PixelDTO pixelDTO) {
         try {
