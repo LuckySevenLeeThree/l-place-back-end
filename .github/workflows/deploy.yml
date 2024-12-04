@@ -51,15 +51,17 @@ jobs:
       - name: ECR에 Docker 이미지 Push하기
         run: docker push ${{ steps.login-ecr.outputs.registry }}/l-place-server:latest
 
-      - name: SSH로 EC2에 접속하기
+      - name: SSH로 EC2에 접속하여 배포
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_PRIVATE_KEY }}
-          script_stop: true
           script: |
-            docker stop l-place-server || true
-            docker rm l-place-server || true
-            docker pull ${{ steps.login-ecr.outputs.registry }}/l-place-server:latest
-            docker run -d --name l-place-server -p 8080:8080 ${{ steps.login-ecr.outputs.registry }}/l-place-server:latest
+            mkdir -p ~/docker
+            cd ~/docker
+            echo "${{ secrets.DOCKER_COMPOSE_YML }}" | sed "s#{{ECR_REGISTRY}}#${{ steps.login-ecr.outputs.registry }}#g" > docker-compose.yml
+            cat prometheus.yml > prometheus.yml
+            docker compose down || true
+            docker compose pull
+            docker compose up -d
