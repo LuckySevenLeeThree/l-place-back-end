@@ -20,4 +20,13 @@ public class PixelDTO{
             message = "색상 코드는 #RRGGBB 또는 #RGB 형식이어야 합니다."
     )
     private final String color;
+
+    @Override
+    public String toString() {
+        return "PixelDTO{" +
+                "x=" + x +
+                ", y=" + y +
+                ", color='" + color + '\'' +
+                '}';
+    }
 }
