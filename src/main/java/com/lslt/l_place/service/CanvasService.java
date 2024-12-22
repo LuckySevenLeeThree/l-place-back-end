@@ -24,4 +24,5 @@ public interface CanvasService {
      */
     PixelDTO updatePixel(int x, int y, String color);
 
+    PixelDTO getPixel(int x, int y);
 }

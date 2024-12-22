@@ -37,4 +37,20 @@ public class CanvasController {
         }
         return canvasService.updatePixel(pixelDTO.getX(), pixelDTO.getY(), pixelDTO.getColor());
     }
+
+    /**
+     * 특정 x, y 좌표의 픽셀 색상을 반환합니다.
+     * @param x x 좌표
+     * @param y y 좌표
+     * @return 해당 픽셀의 색상 정보
+     */
+    @GetMapping("/pixel")
+    public PixelDTO getPixel(@RequestParam int x, @RequestParam int y) {
+        if (x < 0 || x >= 256 || y < 0 || y >= 256) {
+            throw new IllegalArgumentException("Invalid pixel coordinates.");
+        }
+        return canvasService.getPixel(x, y);
+    }
+
+
 }
