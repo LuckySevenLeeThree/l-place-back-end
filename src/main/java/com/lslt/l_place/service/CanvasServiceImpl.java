@@ -72,33 +72,49 @@ public class CanvasServiceImpl implements CanvasService {
         };
 
         RedisConnection connection = redisTemplate.getConnectionFactory().getConnection();
-        // 현재 색상값 읽어오기
-        List<Long> result = connection.bitField(
-                CANVAS_KEY.getBytes(),
-                BitFieldSubCommands.create()
-                        .get(BitFieldSubCommands.BitFieldType.unsigned(24))
-                        .valueAt(offset)
-        );
 
-        // 현재 색상값이 같으면 null 반환
-        if (result != null && !result.isEmpty() && result.get(0) == colorValue) {
-            log.info("같은 위치 같은 색");
-            return null;
+        // 기존 색상 값을 확인
+        byte[] currentPixelData = connection.getRange(CANVAS_KEY.getBytes(), offset, offset + 2);
+        if (currentPixelData != null && currentPixelData.length == 3) {
+            int currentColorValue = ((currentPixelData[0] & 0xFF) << 16) |
+                    ((currentPixelData[1] & 0xFF) << 8) |
+                    (currentPixelData[2] & 0xFF);
+            if (currentColorValue == colorValue) {
+                log.info("같은 위치 같은 색상, 저장하지 않음");
+                return null;
+            }
         }
 
-        connection.bitField(
-                CANVAS_KEY.getBytes(),
-                BitFieldSubCommands.create()
-                        .set(BitFieldSubCommands.BitFieldType.unsigned(24))
-                        .valueAt(offset)
-                        .to(colorValue)
-        );
+        // 새로운 색상 데이터 저장
+        connection.setRange(CANVAS_KEY.getBytes(), pixelData, offset);
+        log.info("Redis에 저장 완료: {} - offset: {}", color, offset);
 
-        PixelDTO pixelDTO = new PixelDTO(x, y , color);
+        PixelDTO pixelDTO = new PixelDTO(x, y, color);
         redisTemplate.convertAndSend("canvas-update", serialize(pixelDTO));
 
         return pixelDTO;
     }
+
+
+
+    @Override
+    public PixelDTO getPixel(int x, int y) {
+        int offset = (y * CANVAS_WIDTH + x) * 3; // 픽셀의 바이트 오프셋 계산
+        RedisConnection connection = redisTemplate.getConnectionFactory().getConnection();
+
+        byte[] data = connection.getRange(CANVAS_KEY.getBytes(), offset, offset + 2);
+        if (data == null || data.length != 3) {
+            throw new IllegalStateException("픽셀 데이터가 없거나 유효하지 않습니다.");
+        }
+
+        int r = data[0] & 0xFF;
+        int g = data[1] & 0xFF;
+        int b = data[2] & 0xFF;
+        String hexColor = String.format("#%02X%02X%02X", r, g, b);
+
+        return new PixelDTO(x, y, hexColor);
+    }
+
 
 
     private String serialize(PixelDTO pixelDTO) {
