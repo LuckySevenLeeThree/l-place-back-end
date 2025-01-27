@@ -29,7 +29,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws") // WebSocket 엔드포인트
-                .setAllowedOriginPatterns("http://localhost:3000") // React 개발 서버 허용
+                .setAllowedOriginPatterns("*") // 클라이언트 도메인 허용
                 .withSockJS(); // SockJS 사용 활성화
     }
 }
